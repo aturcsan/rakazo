@@ -25,7 +25,7 @@ test("audio plays inline and retains its download control", async ({ page }, tes
   });
   await page.goto("/e2e/fixtures/media-preview.html?audio=1");
   await expect(page.getByRole("button", { name: "Play audio.wav" })).toBeVisible();
-  await captureScreenshot(page, testInfo, "116-audio-attachment-idle");
+  await captureScreenshot(page, testInfo, "audio-attachment-idle");
   expect(artifactFetches).toBe(0);
   await expect(page.locator("audio")).toHaveCount(0);
   await page.getByRole("button", { name: "Play audio.wav" }).click();
@@ -40,7 +40,7 @@ test("audio plays inline and retains its download control", async ({ page }, tes
     .poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime))
     .toBeGreaterThan(0.1);
   await audio.evaluate((element: HTMLAudioElement) => element.pause());
-  await captureScreenshot(page, testInfo, "117-audio-attachment");
+  await captureScreenshot(page, testInfo, "audio-attachment");
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download audio.wav" }).click();
   expect((await download).suggestedFilename()).toBe("audio.wav");
