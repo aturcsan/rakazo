@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Text, View } from "react-native";
+import type { PressableProps } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import type { MobileArtifactTarget } from "../lib/artifact-open";
 import { audioArtifactUri, openMobileArtifact } from "../lib/artifact-open";
@@ -16,11 +17,13 @@ export function AudioAttachment({
   artifactId,
   name,
   mimeType,
+  pressableProps,
 }: {
   target: MobileArtifactTarget;
   artifactId: string;
   name: string;
   mimeType: string;
+  pressableProps?: Omit<PressableProps, "onPress" | "children" | "style">;
 }) {
   const { t } = useI18n();
   const tokens = mobileTokens();
@@ -43,7 +46,8 @@ export function AudioAttachment({
     };
   }, [botId, groupId, artifactId, mimeType]);
   return (
-    <View
+    <Pressable
+      {...pressableProps}
       style={{
         gap: 6,
         padding: 12,
@@ -86,7 +90,7 @@ export function AudioAttachment({
           {t("Could not play that clip.")}
         </Text>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
