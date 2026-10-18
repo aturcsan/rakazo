@@ -3495,7 +3495,7 @@ msgstr "Épingler"
 
 #: src/components/ArtifactFileCard.tsx
 msgid "Play {name}"
-msgstr ""
+msgstr "Lire {name}"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Playing…"
