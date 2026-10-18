@@ -16,24 +16,31 @@ test("audio plays inline and retains its download control", async ({ page }, tes
   wav.writeUInt16LE(8, 34);
   wav.write("data", 36);
   wav.writeUInt32LE(16000, 40);
-  await page.route("**/rpc/artifacts/get", (route) =>
-    route.fulfill({
+  let artifactFetches = 0;
+  await page.route("**/rpc/artifacts/get", (route) => {
+    artifactFetches += 1;
+    return route.fulfill({
       json: { json: { contentBase64: wav.toString("base64"), mimeType: "audio/wav" } },
-    }),
-  );
+    });
+  });
   await page.goto("/e2e/fixtures/media-preview.html?audio=1");
+  await expect(page.getByRole("button", { name: "Play audio.wav" })).toBeVisible();
+  await captureScreenshot(page, testInfo, "116-audio-attachment-idle");
+  expect(artifactFetches).toBe(0);
+  await expect(page.locator("audio")).toHaveCount(0);
+  await page.getByRole("button", { name: "Play audio.wav" }).click();
   const audio = page.locator('audio[aria-label="audio.wav"]');
   await expect(audio).toBeVisible();
   await expect(audio).toHaveAttribute("controls", "");
   await expect
     .poll(() => audio.evaluate((element: HTMLAudioElement) => element.readyState))
     .toBeGreaterThanOrEqual(1);
-  await audio.evaluate((element: HTMLAudioElement) => element.play());
+  expect(artifactFetches).toBe(1);
   await expect
     .poll(() => audio.evaluate((element: HTMLAudioElement) => element.currentTime))
     .toBeGreaterThan(0.1);
   await audio.evaluate((element: HTMLAudioElement) => element.pause());
-  await captureScreenshot(page, testInfo, "audio-attachment");
+  await captureScreenshot(page, testInfo, "117-audio-attachment");
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download audio.wav" }).click();
   expect((await download).suggestedFilename()).toBe("audio.wav");

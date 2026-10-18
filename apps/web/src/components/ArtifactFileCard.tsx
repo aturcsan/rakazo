@@ -4,7 +4,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { ChatMarkdown } from "@rakazo/chat-ui/web";
 import { isAttachmentAudioMimeType } from "@rakazo/contracts";
 import { Button, Dialog, DialogClose, DialogContent, DialogTitle } from "@rakazo/ui-web";
-import { Code2, Download, FileText, X } from "lucide-react";
+import { Code2, Download, FileText, Play, X } from "lucide-react";
 import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { ArtifactTarget } from "../lib/artifact-open";
@@ -49,18 +49,11 @@ export function ArtifactFileCard(props: ArtifactFileCardProps) {
   if (isAttachmentAudioMimeType(props.mimeType)) {
     return (
       <div className="min-w-[280px] rounded-2xl border border-border bg-card p-4 text-foreground">
-        <div className="mb-3 flex items-center gap-3">
-          <span className="min-w-0 flex-1 truncate text-[14px] font-medium">{props.name}</span>
-          <button
-            type="button"
-            aria-label={t`Download ${props.name}`}
-            onClick={() => void startDownload()}
-            className="shrink-0 p-2 text-muted-foreground hover:text-foreground"
-          >
-            <Download size={19} strokeWidth={1.8} />
-          </button>
-        </div>
-        <AudioArtifactPreview {...props} />
+        <AudioArtifactPreview
+          key={JSON.stringify([props.target, props.artifactId, props.mimeType])}
+          {...props}
+          onDownload={startDownload}
+        />
         {downloadError ? <DownloadError message={downloadError} /> : null}
       </div>
     );
@@ -248,55 +241,93 @@ function FilePreview({
   );
 }
 
-function AudioArtifactPreview({ target, artifactId, name, mimeType }: ArtifactFileCardProps) {
-  const { t } = useLingui();
-  const [state, setState] = useState<{ bytes?: Uint8Array; error?: string }>({});
-  const botId = "botId" in target ? target.botId : undefined;
-  const groupId = "groupId" in target ? target.groupId : undefined;
-  useEffect(() => {
-    let cancelled = false;
-    setState({});
-    const requestTarget: ArtifactTarget = botId !== undefined ? { botId } : { groupId: groupId! };
-    void fetchArtifactBytes(requestTarget, artifactId).then(
-      (bytes) => {
-        if (!cancelled) setState({ bytes });
-      },
-      () => {
-        if (!cancelled) setState({ error: t`Could not load this file.` });
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [artifactId, botId, groupId, t]);
-  if (state.error) return <DownloadError message={state.error} />;
-  if (!state.bytes)
-    return (
-      <span className="text-sm text-muted-foreground">
-        <Trans>Loading preview…</Trans>
-      </span>
-    );
-  return <AudioPreview bytes={state.bytes} name={name} mimeType={mimeType} />;
-}
-
-function AudioPreview({
-  bytes,
+function AudioArtifactPreview({
+  target,
+  artifactId,
   name,
   mimeType,
-}: {
-  bytes: Uint8Array;
-  name: string;
-  mimeType: string;
-}) {
-  const [src, setSrc] = useState<string>();
+  onDownload,
+}: ArtifactFileCardProps & { onDownload: () => Promise<void> }) {
+  const { t } = useLingui();
+  const [state, setState] = useState<
+    { status: "idle" | "loading" } | { status: "ready"; src: string } | { status: "error" }
+  >({ status: "idle" });
+  const lifetime = useRef<{ cancelled: boolean; started: boolean; url?: string }>(null);
+  const audio = useRef<HTMLAudioElement>(null);
   useEffect(() => {
-    const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mimeType }));
-    setSrc(url);
-    return () => URL.revokeObjectURL(url);
-  }, [bytes, mimeType]);
+    const current = { cancelled: false, started: false, url: undefined as string | undefined };
+    lifetime.current = current;
+    return () => {
+      current.cancelled = true;
+      if (current.url) URL.revokeObjectURL(current.url);
+    };
+  }, []);
+  useEffect(() => {
+    if (state.status !== "ready") return;
+    const player = audio.current;
+    void player?.play().catch(() => {});
+    return () => player?.pause();
+  }, [state]);
+
+  async function startPlayback() {
+    const current = lifetime.current;
+    if (!current || current.cancelled || current.started) return;
+    current.started = true;
+    setState({ status: "loading" });
+    try {
+      const bytes = await fetchArtifactBytes(target, artifactId);
+      if (current.cancelled) return;
+      if (!isAttachmentAudioMimeType(mimeType)) throw new Error("Unsupported audio type");
+      current.url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: mimeType }));
+      setState({ status: "ready", src: current.url });
+    } catch {
+      if (!current.cancelled) setState({ status: "error" });
+    }
+  }
+
   return (
-    // biome-ignore lint/a11y/useMediaCaption: Attachment playback has no caption track supplied by the author.
-    <audio src={src} controls preload="metadata" aria-label={name} className="w-full" />
+    <>
+      <div className="flex items-center gap-3">
+        {state.status === "idle" || state.status === "loading" ? (
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            aria-label={t`Play ${name}`}
+            aria-busy={state.status === "loading"}
+            disabled={state.status === "loading"}
+            onClick={() => void startPlayback()}
+          >
+            <Play />
+          </Button>
+        ) : null}
+        <span className="min-w-0 flex-1 truncate text-[14px] font-medium">{name}</span>
+        <button
+          type="button"
+          aria-label={t`Download ${name}`}
+          onClick={() => void onDownload()}
+          className="shrink-0 p-2 text-muted-foreground hover:text-foreground"
+        >
+          <Download size={19} strokeWidth={1.8} />
+        </button>
+      </div>
+      {state.status === "loading" ? (
+        <span role="status" className="text-sm text-muted-foreground">
+          <Trans>Loading preview…</Trans>
+        </span>
+      ) : state.status === "error" ? (
+        <DownloadError message={t`Could not load this file.`} />
+      ) : state.status === "ready" ? (
+        // biome-ignore lint/a11y/useMediaCaption: Attachment playback has no caption track supplied by the author.
+        <audio
+          ref={audio}
+          src={state.src}
+          controls
+          preload="metadata"
+          aria-label={name}
+          className="mt-3 w-full"
+        />
+      ) : null}
+    </>
   );
 }
 
