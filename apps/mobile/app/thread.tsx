@@ -3706,6 +3706,7 @@ const MessageBubble = memo(function MessageBubble({
             )
           ) : attachment.artifactId && isAttachmentAudioMimeType(attachment.mimeType ?? "") ? (
             <AudioAttachment
+              pressableProps={actionProps}
               key={`${attachment.artifactId}-${index}`}
               target={artifactTarget}
               artifactId={attachment.artifactId}
