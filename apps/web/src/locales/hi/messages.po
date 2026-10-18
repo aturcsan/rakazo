@@ -3495,7 +3495,7 @@ msgstr "पिन करें"
 
 #: src/components/ArtifactFileCard.tsx
 msgid "Play {name}"
-msgstr ""
+msgstr "{name} चलाएँ"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Playing…"

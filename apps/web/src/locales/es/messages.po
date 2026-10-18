@@ -3495,7 +3495,7 @@ msgstr "Fijar"
 
 #: src/components/ArtifactFileCard.tsx
 msgid "Play {name}"
-msgstr ""
+msgstr "Reproducir {name}"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Playing…"

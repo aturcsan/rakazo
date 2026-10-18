@@ -3495,7 +3495,7 @@ msgstr "Sabitle"
 
 #: src/components/ArtifactFileCard.tsx
 msgid "Play {name}"
-msgstr ""
+msgstr "{name} dosyasını oynat"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Playing…"
