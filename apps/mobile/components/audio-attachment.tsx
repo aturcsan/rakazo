@@ -45,9 +45,13 @@ export function AudioAttachment({
       instance.dispose();
     };
   }, [botId, groupId, artifactId, mimeType]);
+  // The row takes the message long-press; screen readers get the message actions on the
+  // name instead so the play and share buttons stay separately focusable.
+  const { accessibilityActions, onAccessibilityAction, ...touchProps } = pressableProps ?? {};
   return (
     <Pressable
-      {...pressableProps}
+      {...touchProps}
+      accessible={false}
       style={{
         gap: 6,
         padding: 12,
@@ -57,7 +61,13 @@ export function AudioAttachment({
         backgroundColor: tokens.card,
       }}
     >
-      <Text numberOfLines={1} style={{ color: tokens.foreground, fontSize: 15 }}>
+      <Text
+        accessible
+        accessibilityActions={accessibilityActions}
+        onAccessibilityAction={onAccessibilityAction}
+        numberOfLines={1}
+        style={{ color: tokens.foreground, fontSize: 15 }}
+      >
         {name}
       </Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>

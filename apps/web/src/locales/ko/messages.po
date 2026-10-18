@@ -3495,7 +3495,7 @@ msgstr "고정"
 
 #: src/components/ArtifactFileCard.tsx
 msgid "Play {name}"
-msgstr ""
+msgstr "{name} 재생"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Playing…"

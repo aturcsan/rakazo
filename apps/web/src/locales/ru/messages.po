@@ -3495,7 +3495,7 @@ msgstr "Закрепить"
 
 #: src/components/ArtifactFileCard.tsx
 msgid "Play {name}"
-msgstr ""
+msgstr "Воспроизвести {name}"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Playing…"

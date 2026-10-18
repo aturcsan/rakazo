@@ -6,6 +6,7 @@ import { expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   root: vi.fn(),
+  text: vi.fn(),
   toggle: vi.fn(),
   share: vi.fn(),
   dispose: vi.fn(),
@@ -16,7 +17,10 @@ vi.mock("react-native", () => ({
     return createElement("div", null, props.children);
   },
   View: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
-  Text: ({ children }: { children?: ReactNode }) => createElement("span", null, children),
+  Text: (props: { children?: ReactNode }) => {
+    mocks.text(props);
+    return createElement("span", null, props.children);
+  },
   ActivityIndicator: () => null,
   Alert: { alert: vi.fn() },
 }));
@@ -65,10 +69,17 @@ it("preserves message actions on the row and independent play/share controls", a
         />,
       ),
     );
-    expect(mocks.root).toHaveBeenLastCalledWith(expect.objectContaining(actions));
     const row = mocks.root.mock.lastCall?.[0];
+    expect(row).toMatchObject({ onLongPress: actions.onLongPress, accessible: false });
+    expect(row.accessibilityActions).toBeUndefined();
+    const label = mocks.text.mock.calls.find(([props]) => props.children === "clip")?.[0];
+    expect(label).toMatchObject({
+      accessible: true,
+      accessibilityActions: actions.accessibilityActions,
+      onAccessibilityAction: actions.onAccessibilityAction,
+    });
     row.onLongPress();
-    row.onAccessibilityAction({ nativeEvent: { actionName: "copy" } });
+    label.onAccessibilityAction({ nativeEvent: { actionName: "copy" } });
     expect(actions.onLongPress).toHaveBeenCalledTimes(1);
     expect(actions.onAccessibilityAction).toHaveBeenCalledTimes(1);
     await act(async () =>

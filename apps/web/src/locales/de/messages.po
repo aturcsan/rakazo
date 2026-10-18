@@ -3495,7 +3495,7 @@ msgstr "Anheften"
 
 #: src/components/ArtifactFileCard.tsx
 msgid "Play {name}"
-msgstr ""
+msgstr "{name} abspielen"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Playing…"
