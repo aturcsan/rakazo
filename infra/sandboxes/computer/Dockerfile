@@ -1,3 +1,7 @@
+# Node 22.23.4 matches the app image. Debian bookworm's nodejs package, which
+# novnc depends on, is 18.20.4. The final stage replaces that runtime.
+FROM node:22.23.4-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d AS nodejs
+
 FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS capture-builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -17,6 +21,10 @@ FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2
 # Dev tools let bots clone repos and fetch artifacts; containers run uid 1000
 # with no privilege escalation, so nothing can be installed at runtime.
 # Compilers stay in the builder stage; heavier toolchains are a separate call.
+# ca-certificates is installed here, not left at the base image copy, so the store
+# is the current bookworm-security package (20250419~deb12u2 drops emSign ECC Root
+# CA - G3 and Comodo AAA). libatomic1 is the library the official Node image installs
+# next to this binary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \
@@ -32,6 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     libnss-wrapper \
     ca-certificates \
+    libatomic1 \
     procps \
     bash \
     chromium \
@@ -65,6 +74,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && chmod +x /usr/bin/fbsetbg \
   && ln -sfn /bin/true /usr/bin/xmessage
 RUN ln -s "$(dpkg -L libnss-wrapper | grep '/libnss_wrapper.so$')" /usr/local/lib/libnss_wrapper.so
+# novnc Depends on Debian nodejs 18.20.4, which does not ship npm. Copy Node
+# 22.23.4 from the pinned image, then drop the Debian runtime so /usr/bin/node,
+# /usr/bin/nodejs, and `node` on PATH are all 22.
+COPY --from=nodejs /usr/local/bin/node /usr/local/bin/node
+COPY --from=nodejs /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN set -eux; \
+  dpkg --remove --force-depends nodejs libnode108; \
+  ln -sfn ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm; \
+  ln -sfn ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx; \
+  ln -sfn ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack; \
+  ln -sfn /usr/local/bin/node /usr/local/bin/nodejs; \
+  ln -sfn /usr/local/bin/node /usr/bin/node; \
+  ln -sfn /usr/local/bin/node /usr/bin/nodejs; \
+  test "$(node -v)" = "v22.23.4"; \
+  test "$(/usr/bin/node -v)" = "v22.23.4"; \
+  test "$(nodejs -v)" = "v22.23.4"; \
+  npm -v; \
+  npx --version; \
+  node --check /usr/share/novnc/utils/genkeysymdef.js; \
+  node --check /usr/share/novnc/utils/use_require.js; \
+  websockify --help >/dev/null; \
+  dpkg -s novnc >/dev/null; \
+  if dpkg -s nodejs >/dev/null 2>&1; then echo "debian nodejs still installed" >&2; exit 1; fi; \
+  if dpkg -s libnode108 >/dev/null 2>&1; then echo "libnode108 still installed" >&2; exit 1; fi; \
+  ca_ver="$(dpkg-query -W ca-certificates | awk '{print $2}')"; \
+  dpkg --compare-versions "$ca_ver" ge "20250419~deb12u2"; \
+  printf 'ca-certificates %s\n' "$ca_ver"
 ARG TARGETARCH
 ARG UV_VERSION=0.12.19
 RUN set -eux; \
