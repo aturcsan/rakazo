@@ -1,4 +1,8 @@
-FROM node:22-bookworm@sha256:0557ac14e0d45d02ed563067b82856ca5e7aa3437fa28d98d4350ea9c3d9494a
+FROM node:22.23.4-bookworm@sha256:63538dfe497cc29dfafdda25ada09b46db68a3f4cc205abf1f5d6bf0913f3384
+# Current Debian CA store: 20250419~deb12u2 drops emSign ECC Root CA - G3 and Comodo AAA.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends --only-upgrade ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /app
 # Manifests land before the source tree so editing a source file does not re-run the
