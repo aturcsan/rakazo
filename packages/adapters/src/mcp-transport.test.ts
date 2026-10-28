@@ -349,8 +349,24 @@ describe("MCP transport seam", () => {
     expect(await provider.tokens()).toMatchObject({
       access_token: "fresh-access",
       refresh_token: "rotated-refresh",
+      issuer: "https://auth.example.test",
     });
-    expect(persisted).toHaveLength(1);
+    expect(provider.clientInformation()).toMatchObject({
+      client_id: "client-1",
+      issuer: "https://auth.example.test",
+    });
+    // SDK 1.31 stamps unstamped client information, then saves the rotated tokens.
+    expect(persisted).toHaveLength(2);
+    expect(persisted.at(-1)).toMatchObject({
+      oauth: {
+        tokens: {
+          access_token: "fresh-access",
+          refresh_token: "rotated-refresh",
+          issuer: "https://auth.example.test",
+        },
+        clientInformation: { client_id: "client-1", issuer: "https://auth.example.test" },
+      },
+    });
     await session.close();
   });
 

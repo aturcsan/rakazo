@@ -183,7 +183,10 @@ async function rejectedOAuthBegin(
 }
 
 describe("MCP OAuth", () => {
-  function expiringMaterial(obtainedAt: number) {
+  function expiringMaterial(
+    obtainedAt: number,
+    options: { issuer?: string; authorizationServerUrl?: string } = {},
+  ) {
     return {
       oauth: {
         tokens: {
@@ -191,11 +194,15 @@ describe("MCP OAuth", () => {
           refresh_token: "old-refresh",
           token_type: "Bearer",
           expires_in: 7200,
+          ...(options.issuer ? { issuer: options.issuer } : {}),
         },
         obtainedAt,
-        clientInformation: { client_id: "client-1" },
+        clientInformation: {
+          client_id: "client-1",
+          ...(options.issuer ? { issuer: options.issuer } : {}),
+        },
         discoveryState: {
-          authorizationServerUrl: "https://auth.example.test",
+          authorizationServerUrl: options.authorizationServerUrl ?? "https://auth.example.test",
           authorizationServerMetadata: {
             issuer: "https://auth.example.test",
             authorization_endpoint: "https://auth.example.test/authorize",
@@ -242,7 +249,11 @@ describe("MCP OAuth", () => {
 
     const [first, second] = await Promise.all([provider.tokens(), provider.tokens()]);
 
-    expect(first).toMatchObject({ access_token: "new-access", refresh_token: "new-refresh" });
+    expect(first).toMatchObject({
+      access_token: "new-access",
+      refresh_token: "new-refresh",
+      issuer: "https://auth.example.test",
+    });
     expect(second).toMatchObject({ access_token: "new-access" });
     expect(tokenRequests).toHaveLength(1);
     expect(tokenRequests[0]?.get("grant_type")).toBe("refresh_token");
@@ -251,6 +262,27 @@ describe("MCP OAuth", () => {
     expect(tokenRequests[0]?.get("resource")).toBe("https://mcp.example.test/");
     expect(persisted.at(-1)?.oauth?.tokens?.access_token).toBe("new-access");
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("does not send a refresh token to a different authorization server", async () => {
+    const material = expiringMaterial(Date.now() - 3 * 60 * 60 * 1000, {
+      issuer: "https://auth.example.test",
+      authorizationServerUrl: "https://evil.example.test",
+    });
+    const refreshNetwork = vi.fn(async () => ({
+      fetch: async () => new Response(),
+      close: async () => undefined,
+    }));
+    const provider = new StoredMcpOAuthProvider("server-1", material, async () => undefined, {
+      refreshNetwork,
+    });
+
+    expect(await provider.tokens()).toMatchObject({
+      access_token: "old-access",
+      refresh_token: "old-refresh",
+      issuer: "https://auth.example.test",
+    });
+    expect(refreshNetwork).not.toHaveBeenCalled();
   });
 
   it("does not renew a token that is still inside its lifetime", async () => {
