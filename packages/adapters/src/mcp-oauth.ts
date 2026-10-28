@@ -191,6 +191,43 @@ type ProviderOptions = {
 const TOKEN_REFRESH_SKEW_MS = 60_000;
 
 /** One SDK OAuth provider backed by the same encrypted material used at runtime. */
+function credentialIssuer(value: { issuer?: string } | undefined): string | undefined {
+  return typeof value?.issuer === "string" ? value.issuer : undefined;
+}
+
+// Parsed URLs, with one trailing slash ignored. This is the comparison
+// @modelcontextprotocol/sdk uses for the issuer stamp on stored credentials.
+function authorizationServersMatch(left: string, right: string): boolean {
+  let a = left;
+  let b = right;
+  try {
+    a = new URL(left).href;
+    b = new URL(right).href;
+  } catch {
+    // Either value is not a URL, so compare the original strings.
+  }
+  return (
+    a === b ||
+    (a.endsWith("/") && a.slice(0, -1) === b) ||
+    (b.endsWith("/") && b.slice(0, -1) === a)
+  );
+}
+
+function credentialsMatchAuthorizationServer(
+  clientInformation: { issuer?: string },
+  tokens: { issuer?: string } | undefined,
+  authorizationServerUrl: string,
+): boolean {
+  const clientIssuer = credentialIssuer(clientInformation);
+  const tokenIssuer = credentialIssuer(tokens);
+  if (clientIssuer && !authorizationServersMatch(clientIssuer, authorizationServerUrl))
+    return false;
+  if (tokenIssuer && !authorizationServersMatch(tokenIssuer, authorizationServerUrl)) return false;
+  if (clientIssuer && tokenIssuer && !authorizationServersMatch(clientIssuer, tokenIssuer))
+    return false;
+  return true;
+}
+
 export class StoredMcpOAuthProvider implements OAuthClientProvider {
   authorizationUrl?: URL;
   private readonly runtimeState = randomUUID();
@@ -265,22 +302,36 @@ export class StoredMcpOAuthProvider implements OAuthClientProvider {
     const discovery = oauth?.discoveryState;
     const clientInformation = oauth?.clientInformation;
     if (!refreshToken || !discovery?.authorizationServerUrl || !clientInformation) return;
+    const authorizationServerUrl = discovery.authorizationServerUrl;
+    // refreshAuthorization does not check issuer. Refuse when stored credentials
+    // are already stamped for a different authorization server, then write the
+    // stamp back: the token response omits it, and saving that response would
+    // drop the binding auth() recorded.
+    if (
+      !credentialsMatchAuthorizationServer(clientInformation, oauth.tokens, authorizationServerUrl)
+    ) {
+      return;
+    }
     let network: { fetch: typeof fetch; close: () => Promise<void> } | undefined;
     try {
       network = await this.options.refreshNetwork?.();
       if (!network) return;
       const resource = await this.validateResourceURL(
-        discovery.authorizationServerUrl,
+        authorizationServerUrl,
         discovery.resourceMetadata?.resource,
       );
-      const next = await refreshAuthorization(discovery.authorizationServerUrl, {
+      const next = await refreshAuthorization(authorizationServerUrl, {
         metadata: discovery.authorizationServerMetadata,
         clientInformation,
         refreshToken,
         resource,
         fetchFn: network.fetch,
       });
-      await this.saveTokens(next);
+      const issuer =
+        credentialIssuer(clientInformation) ??
+        credentialIssuer(oauth.tokens) ??
+        authorizationServerUrl;
+      await this.saveTokens({ ...next, issuer });
     } catch (error) {
       if (error instanceof InvalidGrantError) {
         // A revoked refresh token cannot recover through a second SDK attempt.
