@@ -1,4 +1,4 @@
-FROM node:22-bookworm@sha256:0557ac14e0d45d02ed563067b82856ca5e7aa3437fa28d98d4350ea9c3d9494a
+FROM node:24.22.3-bookworm@sha256:9d266751ca3d7fdbe651c878ffd5ad0a42fed49a18c283509267c97f025b7496
 RUN corepack enable
 WORKDIR /app
 # Manifests land before the source tree so editing a source file does not re-run the

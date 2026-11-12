@@ -1,3 +1,7 @@
+# Node 24.22.3 matches the app image. Debian bookworm's nodejs package, which
+# novnc depends on, is 18.20.4. The final stage replaces that runtime.
+FROM node:24.22.3-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS nodejs
+
 FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS capture-builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -32,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     libnss-wrapper \
     ca-certificates \
+    libatomic1 \
     procps \
     bash \
     chromium \
@@ -65,6 +70,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && chmod +x /usr/bin/fbsetbg \
   && ln -sfn /bin/true /usr/bin/xmessage
 RUN ln -s "$(dpkg -L libnss-wrapper | grep '/libnss_wrapper.so$')" /usr/local/lib/libnss_wrapper.so
+# novnc Depends on Debian nodejs 18.20.4, which does not ship npm. Copy Node
+# 24.22.3 from the pinned image, then drop the Debian runtime so /usr/bin/node,
+# /usr/bin/nodejs, and `node` on PATH are all 24. libatomic1 is the library the
+# official Node image installs next to this binary.
+COPY --from=nodejs /usr/local/bin/node /usr/local/bin/node
+COPY --from=nodejs /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN set -eux; \
+  dpkg --remove --force-depends nodejs libnode108; \
+  ln -sfn ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm; \
+  ln -sfn ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx; \
+  ln -sfn ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack; \
+  ln -sfn /usr/local/bin/node /usr/local/bin/nodejs; \
+  ln -sfn /usr/local/bin/node /usr/bin/node; \
+  ln -sfn /usr/local/bin/node /usr/bin/nodejs; \
+  test "$(node -v)" = "v24.22.3"; \
+  test "$(/usr/bin/node -v)" = "v24.22.3"; \
+  test "$(nodejs -v)" = "v24.22.3"; \
+  npm -v; \
+  npx --version; \
+  node --check /usr/share/novnc/utils/genkeysymdef.js; \
+  node --check /usr/share/novnc/utils/use_require.js; \
+  websockify --help >/dev/null; \
+  dpkg -s novnc >/dev/null; \
+  if dpkg -s nodejs >/dev/null 2>&1; then echo "debian nodejs still installed" >&2; exit 1; fi; \
+  if dpkg -s libnode108 >/dev/null 2>&1; then echo "libnode108 still installed" >&2; exit 1; fi
 ARG TARGETARCH
 ARG UV_VERSION=0.12.19
 RUN set -eux; \
