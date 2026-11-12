@@ -107,7 +107,7 @@ the `https://` address.
 
 ## Local development (source checkout)
 
-You need Node.js 22.22.2 or newer in the 22.x line, Node.js 24.x, or Node.js 26+;
+You need Node.js 24.22.3 or newer on the 24.x line, or Node.js 26 or newer;
 pnpm 9; and Docker. Node.js 23.x and 25.x are not supported.
 
 ```bash

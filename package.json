@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": "^22.22.2 || ^24.0.0 || >=26.0.0"
+    "node": "^24.22.3 || >=26.0.0"
   },
   "scripts": {
     "dev": "cross-env COREPACK_ENABLE_DOWNLOAD_PROMPT=0 turbo dev --filter=@rakazo/api --filter=@rakazo/worker --filter=@rakazo/web --filter=@rakazo/sandbox-supervisor",
@@ -48,6 +48,7 @@
       "react": "19.2.3",
       "react-dom": "19.2.3",
       "proxy-addr@<2.0.8": "2.0.8",
+      "sharp@<0.35.5": "0.35.5",
       "e2b>undici8": "npm:undici@8.10.2"
     },
     "patchedDependencies": {
